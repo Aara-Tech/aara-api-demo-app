@@ -11,34 +11,14 @@ import {
   Modal,
   TouchableWithoutFeedback,
 } from "react-native";
-import { ThemedText } from "@/components/ThemedText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import CreateJourneyForm from "@/components/CreateJourneyForm";
+import { MaterialIcons } from "@expo/vector-icons"; // For the refresh icon
+import CreateJourneyForm, { FormData } from "@/components/CreateJourneyForm";
 
 const AARA_API_KEY = process.env.EXPO_PUBLIC_AARA_API_KEY;
 const UNIQUE_USER_ID = process.env.EXPO_PUBLIC_UNIQUE_USER_ID;
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-
-interface City {
-  id: string;
-  name: string;
-}
-
-interface DirectionData {
-  latitude: number;
-  longitude: number;
-}
-
-interface Media {
-  id: string;
-  url: string;
-}
-
-interface Category {
-  id: string;
-  name: string | null;
-}
 
 interface SpotCompact {
   id: string;
@@ -47,8 +27,11 @@ interface SpotCompact {
   shortDescription: string;
   name: string;
   description: string | null;
-  category: Category;
-  medias: Media[];
+  category: {
+    id: string;
+    name: string | null;
+  };
+  medias: { id: string; url: string }[];
   isActive: boolean;
   phone: string | null;
   fullAddress: string;
@@ -61,8 +44,8 @@ interface Journey {
   isBookmarked: boolean;
   distance: number | null;
   duration: number | null;
-  directionData: DirectionData[];
-  city: City;
+  directionData: { latitude: number; longitude: number }[];
+  city: { id: string; name: string };
   spots: SpotCompact[];
 }
 
@@ -71,6 +54,13 @@ export default function AaraScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasJourney, setHasJourney] = useState<boolean | null>(null);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [formData, setFormData] = useState<FormData>({
+    cityName: "Paris",
+    categoryNames: [],
+    from: 8,
+    to: 23,
+    price: [],
+  });
   const router = useRouter();
 
   useEffect(() => {
@@ -106,7 +96,8 @@ export default function AaraScreen() {
     }
   };
 
-  const handleNewPathSubmit = (formData) => {
+  const handleNewPathSubmit = (submittedFormData: FormData) => {
+    setFormData(submittedFormData);
     setIsLoading(true);
     setModalVisible(false);
 
@@ -117,7 +108,7 @@ export default function AaraScreen() {
         aara_api_key: AARA_API_KEY || "",
         unique_user_id: UNIQUE_USER_ID || "",
       },
-      body: JSON.stringify(formData),
+      body: JSON.stringify(submittedFormData),
     })
       .then((response) => {
         if (response.ok) {
@@ -131,44 +122,14 @@ export default function AaraScreen() {
       })
       .catch((error) => {
         console.error(error);
-        // You might want to show an error message to the user here
       })
       .finally(() => {
         setIsLoading(false);
       });
   };
 
-  // New function to handle the "Paris" API call
-  const fetchJourneyByCity = async (city: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${BACKEND_URL}/journeys`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          aara_api_key: AARA_API_KEY || "",
-          unique_user_id: UNIQUE_USER_ID || "",
-        },
-        body: JSON.stringify({ city }),
-      });
-      if (response.ok) {
-        const data: Journey = await response.json();
-        setSpots(data.spots);
-        setHasJourney(true);
-      } else {
-        console.error("Error fetching journey by city:", response.statusText);
-        setHasJourney(null);
-      }
-    } catch (error) {
-      console.error("Error fetching journey by city:", error);
-      setHasJourney(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSpotClick = (spotId: string) => {
-    router.push(`/spot/${spotId}`);
+  const handleRefreshSubmit = () => {
+    handleNewPathSubmit(formData);
   };
 
   const toggleModal = () => {
@@ -179,7 +140,7 @@ export default function AaraScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0000ff" />
+          <ActivityIndicator size="large" color="#007BFF" />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
@@ -188,56 +149,58 @@ export default function AaraScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.headerContainer}>
-        <ThemedText type="title">
-          {hasJourney ? "Your last path" : "Create a new path"}
-        </ThemedText>
-        {hasJourney && (
-          <View style={styles.buttonGroup}>
-            <Button title="New Path" onPress={toggleModal} />
-            <Button
-              title="Journey in Paris"
-              onPress={() => fetchJourneyByCity("Paris")}
-            />
-          </View>
+      <ScrollView
+        style={styles.scrollview}
+        showsVerticalScrollIndicator={false}
+      >
+        {hasJourney ? (
+          <>
+            <Text style={styles.pageTitle}>Your last journey</Text>
+            {spots.map((spotItem) => (
+              <TouchableOpacity
+                key={spotItem.id}
+                style={styles.spotContainer}
+                onPress={() => router.push(`/spot/${spotItem.id}`)}
+              >
+                {spotItem.medias.length > 0 && (
+                  <Image
+                    source={{ uri: spotItem.medias[0].url }}
+                    style={styles.spotImage}
+                  />
+                )}
+                <View style={styles.textContainer}>
+                  <Text style={styles.spotName}>{spotItem.name}</Text>
+                  <Text style={styles.spotDescription}>
+                    {spotItem.shortDescription}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
+        ) : (
+          <CreateJourneyForm
+            initialData={formData}
+            onSubmit={handleNewPathSubmit}
+          />
         )}
+      </ScrollView>
+
+      {/* Floating action buttons */}
+      <View style={styles.fabContainer}>
+        {/* New Path Button */}
+        <TouchableOpacity style={styles.newPathButton} onPress={toggleModal}>
+          <Text style={styles.newPathButtonText}>New Path</Text>
+        </TouchableOpacity>
+
+        {/* Refresh Button */}
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={handleRefreshSubmit}
+        >
+          <MaterialIcons name="refresh" size={24} color="white" />
+        </TouchableOpacity>
       </View>
-      {hasJourney === false ? (
-        <ScrollView
-          style={styles.scrollview}
-          showsVerticalScrollIndicator={false}
-        >
-          <CreateJourneyForm onSubmit={handleNewPathSubmit} />
-        </ScrollView>
-      ) : hasJourney ? (
-        <ScrollView
-          style={styles.scrollview}
-          showsVerticalScrollIndicator={false}
-        >
-          {spots.map((spotItem) => (
-            <TouchableOpacity
-              key={spotItem.id}
-              style={styles.spotContainer}
-              onPress={() => handleSpotClick(spotItem.id)}
-            >
-              {spotItem.medias.length > 0 && (
-                <Image
-                  source={{ uri: spotItem.medias[0].url }}
-                  style={styles.spotImage}
-                />
-              )}
-              <View style={styles.textContainer}>
-                <Text style={styles.spotName}>{spotItem.name}</Text>
-                <Text style={styles.spotDescription}>
-                  {spotItem.shortDescription}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      ) : (
-        <Text>An error occurred. Please try again.</Text>
-      )}
+
       <Modal
         animationType="fade"
         transparent={true}
@@ -250,8 +213,8 @@ export default function AaraScreen() {
               <View style={styles.centeredView}>
                 <View style={styles.modalView}>
                   <CreateJourneyForm
+                    initialData={formData}
                     onSubmit={handleNewPathSubmit}
-                    onClose={toggleModal}
                   />
                 </View>
               </View>
@@ -266,22 +229,20 @@ export default function AaraScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-  },
-  headerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: 16,
-    paddingTop: 16,
+    paddingHorizontal: 20,
   },
   scrollview: {
     flex: 1,
-    paddingTop: 24,
+    paddingTop: 32,
+    paddingBottom: 80,
+  },
+  pageTitle: {
+    fontSize: 24,
+    marginBottom: 32,
   },
   spotContainer: {
     flexDirection: "row",
-    marginBottom: 16,
+    marginBottom: 32,
     alignItems: "flex-start",
   },
   spotImage: {
@@ -294,12 +255,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   spotName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     marginBottom: 8,
   },
   spotDescription: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#333",
   },
   loadingContainer: {
@@ -311,6 +272,37 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
   },
+  // Floating action buttons styles
+  fabContainer: {
+    position: "absolute",
+    bottom: 20, // Distance from bottom for both buttons
+    left: 20,
+    right: 20,
+    flexDirection: "row", // Arrange buttons in a row
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  newPathButton: {
+    backgroundColor: "#007BFF",
+    paddingVertical: 10,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    alignSelf: "center",
+    flex: 1, // Make this button take more space
+    marginRight: 10, // Space between buttons
+  },
+  newPathButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  refreshButton: {
+    backgroundColor: "#007BFF",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 30,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -318,7 +310,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   centeredView: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -327,14 +318,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 35,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
     width: "90%",
     maxWidth: 400,
   },

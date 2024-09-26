@@ -7,8 +7,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator, // Import ActivityIndicator for loading
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useNavigation } from "expo-router";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const AARA_API_KEY = process.env.EXPO_PUBLIC_AARA_API_KEY;
@@ -48,8 +49,9 @@ interface Spot {
 
 export default function SpotScreen() {
   const { id } = useLocalSearchParams();
+  const navigation = useNavigation(); // Access navigation object
   const [spot, setSpot] = useState<Spot | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Loading state
 
   useEffect(() => {
     fetchSpotDetails();
@@ -67,6 +69,11 @@ export default function SpotScreen() {
       if (response.ok) {
         const data = await response.json();
         setSpot(data);
+
+        // Set the top bar title dynamically based on the spot's name
+        if (data && data.name) {
+          navigation.setOptions({ title: data.name });
+        }
       } else {
         console.error("Error fetching spot details:", response.statusText);
       }
@@ -103,8 +110,14 @@ export default function SpotScreen() {
     }
   }
 
+  // Show loading spinner while data is fetching
   if (isLoading) {
-    return <Text>Loading...</Text>;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007BFF" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
   }
 
   if (!spot) {
@@ -127,7 +140,7 @@ export default function SpotScreen() {
             pagingEnabled
             style={styles.imageScroll}
           >
-            {spot.medias.map((media, index) => (
+            {spot.medias.map((media) => (
               <View key={media.id} style={styles.imageContainer}>
                 <Image
                   source={{ uri: media.url }}
@@ -144,29 +157,40 @@ export default function SpotScreen() {
       <View style={styles.details}>
         <Text style={styles.title}>{spot.name}</Text>
 
-        <View style={styles.bookmarkContainer}>
-          <Text style={styles.bookmarkStatus}>
-            {spot.isBookmarked ? "Bookmarked" : "Not bookmarked"}
-          </Text>
-          <TouchableOpacity
-            onPress={toggleBookmark}
-            style={styles.bookmarkButton}
-          >
-            <Text style={styles.bookmarkButtonText}>
-              {spot.isBookmarked ? "Remove Bookmark" : "Add Bookmark"}
+        <View style={styles.section}>
+          <View style={styles.bookmarkContainer}>
+            <Text style={styles.bookmarkStatus}>
+              {spot.isBookmarked ? "Bookmarked" : "Not bookmarked"}
             </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={toggleBookmark}
+              style={styles.bookmarkButton}
+            >
+              <Text style={styles.bookmarkButtonText}>
+                {spot.isBookmarked ? "Remove Bookmark" : "Add Bookmark"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <Text style={styles.shortDescription}>{spot.shortDescription}</Text>
-        {!!spot.description && (
-          <Text style={styles.description}>{spot.description}</Text>
+        <View style={styles.section}>
+          <Text style={styles.shortDescription}>{spot.shortDescription}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Address:</Text>
+          <Text style={styles.address}>{spot.fullAddress}</Text>
+        </View>
+        {!!spot.phone && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Phone:</Text>
+            <Text style={styles.phone}>{spot.phone}</Text>
+          </View>
         )}
-        <Text style={styles.address}>{spot.fullAddress}</Text>
-        {!!spot.phone && <Text style={styles.phone}>Phone: {spot.phone}</Text>}
+
         {spot.openingHours && (
-          <View style={styles.openingHours}>
-            <Text style={styles.openingHoursTitle}>Opening Hours:</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Opening Hours:</Text>
             {spot.openingHours.map((day) => (
               <Text key={day.name} style={styles.openingHoursDay}>
                 {day.name}:{" "}
@@ -200,6 +224,14 @@ const styles = StyleSheet.create({
     height: 450,
     marginRight: 16,
   },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
   singleImage: {
     width: "100%",
     height: 450,
@@ -228,7 +260,7 @@ const styles = StyleSheet.create({
     color: "#555",
   },
   bookmarkButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: "#007BFF", // Unified blue color
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 5,
@@ -255,32 +287,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
   },
-  openingHours: {
-    marginVertical: 8,
-  },
-  openingHoursTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
   openingHoursDay: {
     fontSize: 16,
     color: "#333",
     marginVertical: 2,
   },
-  status: {
-    fontSize: 16,
-    color: "#333",
-    marginVertical: 8,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  coordinates: {
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
-    color: "#333",
-    marginVertical: 8,
-  },
-  category: {
-    fontSize: 16,
-    color: "#333",
-    marginVertical: 8,
   },
 });

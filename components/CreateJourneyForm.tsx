@@ -2,12 +2,26 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   Button,
   StyleSheet,
   TouchableOpacity,
   Image,
 } from "react-native";
+import MultiSlider from "@ptomasroos/react-native-multi-slider";
+
+export interface FormData {
+  cityName: string;
+  categoryNames: string[];
+  from: number;
+  to: number;
+  price: number[];
+}
+
+interface CreateJourneyFormProps {
+  onSubmit: (formData: FormData) => void;
+  onClose?: () => void;
+  initialData: FormData; // Accept initial data as a prop
+}
 
 const priceImages = [
   require("@/assets/images/price-0.png"),
@@ -16,7 +30,15 @@ const priceImages = [
   require("@/assets/images/price-3.png"),
 ];
 
-const CustomCheckBox = ({ isChecked, onChange, price }) => {
+const CustomCheckBox = ({
+  isChecked,
+  onChange,
+  price,
+}: {
+  isChecked: boolean;
+  onChange: () => void;
+  price: number;
+}) => {
   return (
     <TouchableOpacity onPress={onChange} style={styles.checkbox}>
       <Image
@@ -27,7 +49,15 @@ const CustomCheckBox = ({ isChecked, onChange, price }) => {
   );
 };
 
-const CustomToggle = ({ isChecked, onChange, label }) => {
+const CustomToggle = ({
+  isChecked,
+  onChange,
+  label,
+}: {
+  isChecked: boolean;
+  onChange: () => void;
+  label: string;
+}) => {
   return (
     <TouchableOpacity onPress={onChange} style={styles.toggleContainer}>
       <View style={[styles.toggle, isChecked && styles.toggleChecked]}>
@@ -38,31 +68,26 @@ const CustomToggle = ({ isChecked, onChange, label }) => {
   );
 };
 
+const CustomMarker = ({ pressed }: { pressed: boolean }) => {
+  return <View style={pressed ? styles.markerPressed : styles.marker}></View>;
+};
+
 const CreateJourneyForm = ({
   onSubmit,
   onClose,
-}: {
-  onSubmit: (formData: any) => void;
-  onClose?: () => void;
-}) => {
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedPrices, setSelectedPrices] = useState([]);
-  const [fromTime, setFromTime] = useState("8");
-  const [toTime, setToTime] = useState("23");
+  initialData,
+}: CreateJourneyFormProps) => {
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    initialData.categoryNames
+  );
+  const [selectedPrices, setSelectedPrices] = useState<number[]>(
+    initialData.price
+  );
+  const [fromTime, setFromTime] = useState(initialData.from);
+  const [toTime, setToTime] = useState(initialData.to);
+  const [isSliderActive, setIsSliderActive] = useState(false);
 
-  const handleFromTimeChange = (text) => {
-    if (text === "" || (parseInt(text) >= 0 && parseInt(text) <= 23)) {
-      setFromTime(text);
-    }
-  };
-
-  const handleToTimeChange = (text) => {
-    if (text === "" || (parseInt(text) >= 0 && parseInt(text) <= 23)) {
-      setToTime(text);
-    }
-  };
-
-  const togglePriceSelection = (price) => {
+  const togglePriceSelection = (price: number) => {
     setSelectedPrices((prevPrices) =>
       prevPrices.includes(price)
         ? prevPrices.filter((p) => p !== price)
@@ -70,7 +95,7 @@ const CreateJourneyForm = ({
     );
   };
 
-  const toggleCategorySelection = (categoryId) => {
+  const toggleCategorySelection = (categoryId: string) => {
     setSelectedCategories((prevCategories) =>
       prevCategories.includes(categoryId)
         ? prevCategories.filter((id) => id !== categoryId)
@@ -78,16 +103,22 @@ const CreateJourneyForm = ({
     );
   };
 
+  const handleTimeValuesChange = (values: number[]) => {
+    const [minTime, maxTime] = values;
+    setFromTime(minTime);
+    setToTime(maxTime);
+  };
+
   const handleSubmit = () => {
-    const fromTimeInt = Math.max(8, Math.min(23, parseInt(fromTime) || 8));
-    const toTimeInt = Math.max(8, Math.min(23, parseInt(toTime) || 23));
+    const fromTimeInt = Math.max(8, Math.min(23, fromTime));
+    const toTimeInt = Math.max(8, Math.min(23, toTime));
 
     const categoryNames = selectedCategories.filter(
       (category) => category !== "Sleep"
     );
 
     onSubmit({
-      city: "Paris",
+      cityName: "Paris",
       categoryNames,
       from: fromTimeInt,
       to: toTimeInt,
@@ -128,24 +159,32 @@ const CreateJourneyForm = ({
           />
         ))}
       </View>
-      <Text style={styles.sectionTitle}>From Time (8-23):</Text>
-      <TextInput
-        style={styles.input}
-        value={fromTime}
-        onChangeText={handleFromTimeChange}
-        keyboardType="numeric"
-        placeholder="8"
-      />
-      <Text style={styles.sectionTitle}>To Time (8-23):</Text>
-      <TextInput
-        style={styles.input}
-        value={toTime}
-        onChangeText={handleToTimeChange}
-        keyboardType="numeric"
-        placeholder="23"
-      />
+      <Text style={styles.sectionTitle}>Select Time Range:</Text>
+      <View style={styles.sliderContainer}>
+        <MultiSlider
+          values={[fromTime, toTime]}
+          sliderLength={240}
+          min={8}
+          max={23}
+          step={1}
+          onValuesChange={handleTimeValuesChange}
+          selectedStyle={{
+            backgroundColor: isSliderActive ? "#007BFF" : "#777",
+          }}
+          unselectedStyle={{ backgroundColor: "lightgray" }}
+          customMarker={CustomMarker}
+          allowOverlap={false}
+          snapped
+          onValuesChangeStart={() => setIsSliderActive(true)}
+          onValuesChangeFinish={() => setIsSliderActive(false)}
+        />
+      </View>
+      <View style={styles.timeLabelsContainer}>
+        <Text style={styles.timeLabel}>From: {fromTime}:00</Text>
+        <Text style={styles.timeLabel}>To: {toTime}:00</Text>
+      </View>
       <View style={styles.buttonContainer}>
-        <Button title="Create Path" onPress={handleSubmit} />
+        <Button title="Create Path" onPress={handleSubmit} color={"#007BFF"} />
         {onClose && <Button title="Close" onPress={onClose} color="red" />}
       </View>
     </View>
@@ -214,13 +253,36 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 14,
   },
-  input: {
-    height: 40,
-    borderColor: "gray",
-    borderWidth: 1,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    width: "100%",
+  sliderContainer: {
+    alignItems: "center",
+  },
+  marker: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    // Light gray color
+    backgroundColor: "#D3D3D3",
+    borderWidth: 2,
+    borderColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  markerPressed: {
+    height: 26,
+    width: 26,
+    borderRadius: 13,
+    backgroundColor: "#007BFF",
+    borderWidth: 2,
+    borderColor: "white",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  timeLabelsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  timeLabel: {
+    fontSize: 14,
   },
   buttonContainer: {
     flexDirection: "row",
